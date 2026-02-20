@@ -19,6 +19,22 @@ check() {
     fi
 }
 
+check_post() {
+    desc="$1"
+    url="$2"
+    body="$3"
+    expected="$4"
+
+    code=$(curl -s -o /dev/null -w "%{http_code}" -X POST -d "$body" "$url")
+    if [ "$code" = "$expected" ]; then
+        printf "  PASS  %s -> %s\n" "$desc" "$code"
+        PASS=$((PASS + 1))
+    else
+        printf "  FAIL  %s -> %s (expected %s)\n" "$desc" "$code" "$expected"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
 echo "Coraza WAF test suite"
 echo "Target: $URL"
 echo ""
@@ -50,6 +66,27 @@ echo ""
 echo "--- Remote command execution (expect 403) ---"
 check "RCE: shell command"            "$URL/?cmd=;cat%20/etc/passwd"             403
 check "RCE: pipe command"             "$URL/?cmd=|ls%20-la"                      403
+echo ""
+
+echo "--- POST normal requests (expect 200) ---"
+check_post "POST normal form"         "$URL/api" "name=john&age=30"              200
+check_post "POST normal JSON"         "$URL/api" '{"user":"john","action":"login"}' 200
+echo ""
+
+echo "--- POST SQL injection (expect 403) ---"
+check_post "POST SQLi: OR 1=1"        "$URL/api" "id=1 OR 1=1"                  403
+check_post "POST SQLi: UNION SELECT"  "$URL/api" "id=1 UNION SELECT 1,2,3"      403
+check_post "POST SQLi: DROP TABLE"    "$URL/api" "q=1;DROP TABLE users"          403
+echo ""
+
+echo "--- POST XSS (expect 403) ---"
+check_post "POST XSS: script tag"     "$URL/api" "q=<script>alert(1)</script>"   403
+check_post "POST XSS: img onerror"    "$URL/api" "q=<img src=x onerror=alert(1)>" 403
+echo ""
+
+echo "--- POST RCE (expect 403) ---"
+check_post "POST RCE: shell cmd"      "$URL/api" "cmd=;cat /etc/passwd"          403
+check_post "POST RCE: pipe cmd"       "$URL/api" "cmd=|ls -la"                   403
 echo ""
 
 echo "=============================="

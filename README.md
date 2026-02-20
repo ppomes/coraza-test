@@ -47,7 +47,15 @@ curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/?q=<script>alert(1
 curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/?file=../../../etc/passwd"
 # 403
 
-# Or run the full test suite
+# POST with normal body → 200
+curl -s -o /dev/null -w "%{http_code}" -X POST -d "name=john&age=30" http://localhost:8080/api
+# 200
+
+# POST with SQL injection in body → 403
+curl -s -o /dev/null -w "%{http_code}" -X POST -d "id=1 OR 1=1" http://localhost:8080/api
+# 403
+
+# Or run the full test suite (23 tests)
 ./test.sh
 ```
 
@@ -57,7 +65,7 @@ curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/?file=../../../etc
 |-------------|--------|
 | Official `corazawaf/libcoraza` master + `corazawaf/coraza-nginx` main | **Does not compile** — API mismatch between libcoraza and the nginx module |
 | Official `corazawaf/libcoraza` master + Felipe's PR#3 (`corazawaf/coraza-nginx` `chore/update-latest-libcoraza`) | **Compiles but WAF is inert** — all requests return 200, no blocking, no audit log. The C API functions are stubs that do nothing. |
-| ppomes forks (this Dockerfile) | **Works** — normal requests return 200, SQLi/XSS/path traversal all blocked (403) with proper CRS rule IDs in the audit log |
+| ppomes forks (this Dockerfile) | **Works** — normal requests return 200, SQLi/XSS/path traversal/RCE all blocked (403) for both GET and POST, with proper CRS rule IDs in the audit log |
 
 ## Logs
 
